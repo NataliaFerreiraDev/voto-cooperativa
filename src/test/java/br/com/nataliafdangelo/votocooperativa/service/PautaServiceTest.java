@@ -109,10 +109,27 @@ class PautaServiceTest {
     }
 
     @Test
-    void deveRetornarMenuSemOpcoesQuandoJaExisteSessao() {
+    void deveRetornarMenuComOpcaoDeVotarQuandoSessaoEstaAberta() {
         // given
-        Pauta pauta = new Pauta("Pauta com sessão", "desc", Instant.now(clock));
+        Pauta pauta = new Pauta("Pauta com sessão aberta", "desc", Instant.now(clock));
         SessaoVotacao sessao = new SessaoVotacao(pauta, Instant.now(clock), Instant.now(clock).plusSeconds(60));
+        when(pautaRepository.findById(1L)).thenReturn(Optional.of(pauta));
+        when(sessaoVotacaoRepository.findByPautaId(1L)).thenReturn(Optional.of(sessao));
+
+        // when
+        TelaSelecao menu = pautaService.menu(1L);
+
+        // then
+        assertThat(menu.itens()).hasSize(1);
+        assertThat(menu.itens().getFirst().texto()).isEqualTo("Votar");
+    }
+
+    @Test
+    void deveRetornarMenuSemOpcoesQuandoSessaoEstaEncerrada() {
+        // given
+        Pauta pauta = new Pauta("Pauta com sessão encerrada", "desc", Instant.now(clock));
+        SessaoVotacao sessao = new SessaoVotacao(pauta,
+                Instant.now(clock).minusSeconds(120), Instant.now(clock).minusSeconds(60));
         when(pautaRepository.findById(1L)).thenReturn(Optional.of(pauta));
         when(sessaoVotacaoRepository.findByPautaId(1L)).thenReturn(Optional.of(sessao));
 
