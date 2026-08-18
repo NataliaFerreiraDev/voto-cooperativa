@@ -1,6 +1,7 @@
 package br.com.nataliafdangelo.votocooperativa.service;
 
 import br.com.nataliafdangelo.votocooperativa.domain.Pauta;
+import br.com.nataliafdangelo.votocooperativa.domain.SessaoVotacao;
 import br.com.nataliafdangelo.votocooperativa.dto.CriarPautaRequest;
 import br.com.nataliafdangelo.votocooperativa.dto.ItemSelecao;
 import br.com.nataliafdangelo.votocooperativa.dto.TelaSelecao;
@@ -15,11 +16,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class PautaService {
 
     private static final Logger log = LoggerFactory.getLogger(PautaService.class);
+    private static final String BASE_URL_PAUTAS = "/api/v1/pautas/";
 
     private final PautaRepository pautaRepository;
     private final SessaoVotacaoRepository sessaoVotacaoRepository;
@@ -49,7 +52,7 @@ public class PautaService {
 
     private ItemSelecao paraItem(Pauta pauta) {
         String texto = pauta.getTitulo() + " — " + statusDe(pauta);
-        String url = "/api/v1/pautas/" + pauta.getId() + "/menu";
+        String url = BASE_URL_PAUTAS + pauta.getId() + "/menu";
         return new ItemSelecao(texto, url);
     }
 
@@ -64,10 +67,16 @@ public class PautaService {
                 .orElseThrow(() -> new PautaNaoEncontradaException(pautaId));
 
         List<ItemSelecao> itens = new ArrayList<>();
-        if (sessaoVotacaoRepository.findByPautaId(pautaId).isEmpty()) {
+        Optional<SessaoVotacao> sessao = sessaoVotacaoRepository.findByPautaId(pautaId);
+
+        if (sessao.isEmpty()) {
             itens.add(new ItemSelecao("Abrir sessão de votação",
-                    "/api/v1/pautas/" + pautaId + "/sessoes/novo"));
+                    BASE_URL_PAUTAS + pautaId + "/sessoes/novo"));
+        } else if (sessao.get().estaAberta(clock)) {
+            itens.add(new ItemSelecao("Votar",
+                    BASE_URL_PAUTAS + pautaId + "/votos/novo"));
         }
+        // Fase 7 adiciona aqui: "Ver resultado" quando a sessão estiver encerrada
 
         return new TelaSelecao(pauta.getTitulo(), itens);
     }
