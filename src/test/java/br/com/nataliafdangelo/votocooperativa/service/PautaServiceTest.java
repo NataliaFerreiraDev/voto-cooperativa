@@ -4,6 +4,7 @@ import br.com.nataliafdangelo.votocooperativa.domain.Pauta;
 import br.com.nataliafdangelo.votocooperativa.domain.SessaoVotacao;
 import br.com.nataliafdangelo.votocooperativa.dto.CriarPautaRequest;
 import br.com.nataliafdangelo.votocooperativa.dto.TelaSelecao;
+import br.com.nataliafdangelo.votocooperativa.exception.PautaNaoEncontradaException;
 import br.com.nataliafdangelo.votocooperativa.repository.PautaRepository;
 import br.com.nataliafdangelo.votocooperativa.repository.SessaoVotacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -89,6 +91,45 @@ class PautaServiceTest {
 
         // then
         assertThat(resultado.itens().getFirst().texto()).contains("votação encerrada");
+    }
+
+    @Test
+    void deveRetornarMenuComOpcaoDeAbrirSessaoQuandoNaoExisteSessao() {
+        // given
+        Pauta pauta = new Pauta("Pauta sem sessão", "desc", Instant.now(clock));
+        when(pautaRepository.findById(1L)).thenReturn(Optional.of(pauta));
+        when(sessaoVotacaoRepository.findByPautaId(1L)).thenReturn(Optional.empty());
+
+        // when
+        TelaSelecao menu = pautaService.menu(1L);
+
+        // then
+        assertThat(menu.itens()).hasSize(1);
+        assertThat(menu.itens().getFirst().texto()).isEqualTo("Abrir sessão de votação");
+    }
+
+    @Test
+    void deveRetornarMenuSemOpcoesQuandoJaExisteSessao() {
+        // given
+        Pauta pauta = new Pauta("Pauta com sessão", "desc", Instant.now(clock));
+        SessaoVotacao sessao = new SessaoVotacao(pauta, Instant.now(clock), Instant.now(clock).plusSeconds(60));
+        when(pautaRepository.findById(1L)).thenReturn(Optional.of(pauta));
+        when(sessaoVotacaoRepository.findByPautaId(1L)).thenReturn(Optional.of(sessao));
+
+        // when
+        TelaSelecao menu = pautaService.menu(1L);
+
+        // then
+        assertThat(menu.itens()).isEmpty();
+    }
+
+    @Test
+    void deveLancarExcecaoQuandoPautaDoMenuNaoExiste() {
+        // given
+        when(pautaRepository.findById(1L)).thenReturn(Optional.empty());
+
+        // when / then
+        assertThrows(PautaNaoEncontradaException.class, () -> pautaService.menu(1L));
     }
 
 }
