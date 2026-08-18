@@ -4,6 +4,7 @@ import br.com.nataliafdangelo.votocooperativa.domain.Pauta;
 import br.com.nataliafdangelo.votocooperativa.dto.CriarPautaRequest;
 import br.com.nataliafdangelo.votocooperativa.dto.ItemSelecao;
 import br.com.nataliafdangelo.votocooperativa.dto.TelaSelecao;
+import br.com.nataliafdangelo.votocooperativa.exception.PautaNaoEncontradaException;
 import br.com.nataliafdangelo.votocooperativa.repository.PautaRepository;
 import br.com.nataliafdangelo.votocooperativa.repository.SessaoVotacaoRepository;
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -55,6 +57,19 @@ public class PautaService {
         return sessaoVotacaoRepository.findByPautaId(pauta.getId())
                 .map(sessao -> sessao.estaAberta(clock) ? "votação aberta" : "votação encerrada")
                 .orElse("aguardando abertura de sessão");
+    }
+
+    public TelaSelecao menu(Long pautaId) {
+        Pauta pauta = pautaRepository.findById(pautaId)
+                .orElseThrow(() -> new PautaNaoEncontradaException(pautaId));
+
+        List<ItemSelecao> itens = new ArrayList<>();
+        if (sessaoVotacaoRepository.findByPautaId(pautaId).isEmpty()) {
+            itens.add(new ItemSelecao("Abrir sessão de votação",
+                    "/api/v1/pautas/" + pautaId + "/sessoes/novo"));
+        }
+
+        return new TelaSelecao(pauta.getTitulo(), itens);
     }
 
 }
