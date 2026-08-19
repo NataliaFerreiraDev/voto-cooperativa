@@ -3,6 +3,7 @@ package br.com.nataliafdangelo.votocooperativa.exception;
 import br.com.nataliafdangelo.votocooperativa.dto.ErroResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -58,6 +59,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ServicoCpfIndisponivelException.class)
     public ResponseEntity<ErroResponse> tratarServicoCpfIndisponivel(ServicoCpfIndisponivelException ex) {
         return responder(HttpStatus.SERVICE_UNAVAILABLE, "Serviço indisponível", ex);
+    }
+
+    /**
+     * Rede de segurança para condições de corrida: quando duas requisições concorrentes
+     * passam pela checagem em memória (ex: "sessão ainda não existe") e ambas tentam
+     * persistir, a constraint única do banco rejeita a segunda. Sem este handler, o erro
+     * cairia no tratamento genérico (500) em vez do 409 esperado pelo cliente.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErroResponse> tratarConflitoDeConcorrencia(DataIntegrityViolationException ex) {
+        log.warn("Conflito de integridade de dados (provável condição de corrida): {}",
+                ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErroResponse(
+                "Conflito de concorrência",
+                "A operação não pôde ser concluída porque o mesmo recurso foi alterado por outra requisição simultânea. Tente novamente."));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -1,6 +1,5 @@
 package br.com.nataliafdangelo.votocooperativa.exception;
 
-import br.com.nataliafdangelo.votocooperativa.client.CpfEligibilidadeClient;
 import br.com.nataliafdangelo.votocooperativa.controller.PautaController;
 import br.com.nataliafdangelo.votocooperativa.controller.ResultadoController;
 import br.com.nataliafdangelo.votocooperativa.controller.SessaoVotacaoController;
@@ -13,6 +12,7 @@ import br.com.nataliafdangelo.votocooperativa.service.VotoService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -47,9 +47,6 @@ class GlobalExceptionHandlerTest {
 
     @MockitoBean
     private ResultadoService resultadoService;
-
-    @MockitoBean
-    private CpfEligibilidadeClient cpfEligibilidadeClient;
 
     @Test
     void deveTraduzirPautaNaoEncontradaPara404() throws Exception {
@@ -117,7 +114,8 @@ class GlobalExceptionHandlerTest {
     @Test
     void deveTraduzirCpfInvalidoPara404() throws Exception {
         // given
-        when(cpfEligibilidadeClient.verificar("12345678900")).thenThrow(new CpfInvalidoException("12345678900"));
+        doThrow(new CpfInvalidoException("12345678900"))
+                .when(votoService).verificarElegibilidade("12345678900");
 
         // when / then
         mockMvc.perform(post("/api/v1/pautas/1/votos/opcoes")
@@ -130,8 +128,8 @@ class GlobalExceptionHandlerTest {
     @Test
     void deveTraduzirServicoCpfIndisponivelPara503() throws Exception {
         // given
-        when(cpfEligibilidadeClient.verificar("12345678900"))
-                .thenThrow(new ServicoCpfIndisponivelException(new RuntimeException("timeout")));
+        doThrow(new ServicoCpfIndisponivelException(new RuntimeException("timeout")))
+                .when(votoService).verificarElegibilidade("12345678900");
 
         // when / then
         mockMvc.perform(post("/api/v1/pautas/1/votos/opcoes")
@@ -139,6 +137,20 @@ class GlobalExceptionHandlerTest {
                         .content("{\"associadoId\": \"12345678900\"}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.titulo").value("Serviço indisponível"));
+    }
+
+    @Test
+    void deveTraduzirConflitoDeConcorrenciaPara409() throws Exception {
+        // given
+        doThrow(new DataIntegrityViolationException("constraint violada por requisição concorrente"))
+                .when(sessaoVotacaoService).abrir(anyLong(), any());
+
+        // when / then
+        mockMvc.perform(post("/api/v1/pautas/1/sessoes")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.titulo").value("Conflito de concorrência"));
     }
 
     @Test
