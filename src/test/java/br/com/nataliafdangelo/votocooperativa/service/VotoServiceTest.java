@@ -1,9 +1,12 @@
 package br.com.nataliafdangelo.votocooperativa.service;
 
+import br.com.nataliafdangelo.votocooperativa.client.CpfEligibilidadeClient;
+import br.com.nataliafdangelo.votocooperativa.client.StatusVoto;
 import br.com.nataliafdangelo.votocooperativa.domain.OpcaoVoto;
 import br.com.nataliafdangelo.votocooperativa.domain.Pauta;
 import br.com.nataliafdangelo.votocooperativa.domain.SessaoVotacao;
 import br.com.nataliafdangelo.votocooperativa.domain.Voto;
+import br.com.nataliafdangelo.votocooperativa.exception.AssociadoNaoAptoException;
 import br.com.nataliafdangelo.votocooperativa.exception.SessaoFechadaException;
 import br.com.nataliafdangelo.votocooperativa.exception.SessaoNaoEncontradaException;
 import br.com.nataliafdangelo.votocooperativa.exception.VotoDuplicadoException;
@@ -23,6 +26,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,13 +39,16 @@ class VotoServiceTest {
     @Mock
     private VotoRepository votoRepository;
 
+    @Mock
+    private CpfEligibilidadeClient cpfEligibilidadeClient;
+
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-18T10:00:00Z"), ZoneOffset.UTC);
 
     private VotoService votoService;
 
     @BeforeEach
     void setUp() {
-        votoService = new VotoService(sessaoVotacaoRepository, votoRepository, clock);
+        votoService = new VotoService(sessaoVotacaoRepository, votoRepository, cpfEligibilidadeClient, clock);
     }
 
     @Test
@@ -52,6 +59,7 @@ class VotoServiceTest {
         when(sessaoVotacaoRepository.findByPautaId(1L)).thenReturn(Optional.of(sessao));
         when(votoRepository.existsBySessaoVotacaoIdAndAssociadoId(sessao.getId(), "12345678900"))
                 .thenReturn(false);
+        when(cpfEligibilidadeClient.verificar("12345678900")).thenReturn(StatusVoto.ABLE_TO_VOTE);
 
         // when
         votoService.votar(1L, "12345678900", OpcaoVoto.SIM);
@@ -99,6 +107,32 @@ class VotoServiceTest {
         // when / then
         assertThrows(VotoDuplicadoException.class,
                 () -> votoService.votar(1L, "12345678900", OpcaoVoto.SIM));
+    }
+
+    @Test
+    void deveRejeitarVotoQuandoAssociadoNaoApto() {
+        // given
+        Pauta pauta = new Pauta("Pauta", "desc", Instant.now(clock));
+        SessaoVotacao sessao = new SessaoVotacao(pauta, Instant.now(clock), Instant.now(clock).plusSeconds(60));
+        when(sessaoVotacaoRepository.findByPautaId(1L)).thenReturn(Optional.of(sessao));
+        when(votoRepository.existsBySessaoVotacaoIdAndAssociadoId(sessao.getId(), "12345678900"))
+                .thenReturn(false);
+        when(cpfEligibilidadeClient.verificar("12345678900")).thenReturn(StatusVoto.UNABLE_TO_VOTE);
+
+        // when / then
+        assertThrows(AssociadoNaoAptoException.class,
+                () -> votoService.votar(1L, "12345678900", OpcaoVoto.SIM));
+        verify(votoRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void deveVerificarElegibilidadeDiretamente() {
+        // given
+        when(cpfEligibilidadeClient.verificar("12345678900")).thenReturn(StatusVoto.UNABLE_TO_VOTE);
+
+        // when / then
+        assertThrows(AssociadoNaoAptoException.class,
+                () -> votoService.verificarElegibilidade("12345678900"));
     }
 
 }
