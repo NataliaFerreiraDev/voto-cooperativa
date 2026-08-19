@@ -8,6 +8,7 @@ import br.com.nataliafdangelo.votocooperativa.exception.SessaoNaoEncontradaExcep
 import br.com.nataliafdangelo.votocooperativa.exception.VotoDuplicadoException;
 import br.com.nataliafdangelo.votocooperativa.repository.SessaoVotacaoRepository;
 import br.com.nataliafdangelo.votocooperativa.repository.VotoRepository;
+import br.com.nataliafdangelo.votocooperativa.util.Mascara;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,7 +47,9 @@ public class VotoService {
 
         votoRepository.save(new Voto(sessao, associadoId, opcao, Instant.now(clock)));
 
-        log.info("Voto registrado: pautaId={}, associadoId={}, opcao={}", pautaId, associadoId, opcao);
+        if (log.isInfoEnabled()) {
+            log.info("Voto registrado: pautaId={}, associadoId={}, opcao={}", pautaId, Mascara.cpf(associadoId), opcao);
+        }
     }
 
 }

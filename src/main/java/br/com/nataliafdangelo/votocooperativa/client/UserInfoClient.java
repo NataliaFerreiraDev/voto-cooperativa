@@ -2,6 +2,7 @@ package br.com.nataliafdangelo.votocooperativa.client;
 
 import br.com.nataliafdangelo.votocooperativa.exception.CpfInvalidoException;
 import br.com.nataliafdangelo.votocooperativa.exception.ServicoCpfIndisponivelException;
+import br.com.nataliafdangelo.votocooperativa.util.Mascara;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -36,7 +37,9 @@ public class UserInfoClient implements CpfEligibilidadeClient {
         } catch (HttpClientErrorException.NotFound ex) {
             throw new CpfInvalidoException(cpf);
         } catch (RestClientException ex) {
-            log.warn("Falha ao consultar serviço de CPF para {}: {}", cpf, ex.getMessage());
+            if (log.isWarnEnabled()) {
+                log.warn("Falha ao consultar serviço de CPF para {}: {}", Mascara.cpf(cpf), ex.getMessage());
+            }
             throw new ServicoCpfIndisponivelException(ex);
         }
     }
