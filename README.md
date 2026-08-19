@@ -127,7 +127,27 @@ A checagem de CPF ocorre em um único ponto do fluxo, na etapa `/votos/opcoes`, 
 - Contagem de votos feita via query agregada (`GROUP BY` no banco), nunca carregando os votos em memória para contar em Java, necessário para o cenário de "centenas de milhares de votos" citado no enunciado.
 - Constraint única no banco evita a necessidade de lock aplicacional para checagem de voto duplicado.
 - `open-in-view: false` evita manter conexão de banco aberta durante toda a renderização da resposta HTTP (anti-padrão Open Session In View), relevante sob carga concorrente.
-- Script de teste de carga com k6 simulando votos concorrentes — resultados registrados nesta seção após a execução *(em andamento)*.
+
+### Teste de carga (k6)
+
+Script em `loadtest/votar.js` simula votos concorrentes de associados distintos numa única sessão de votação aberta, com carga escalando de 0 a 50 usuários virtuais simultâneos.
+
+**Como executar:**
+
+```bash
+./mvnw spring-boot:run          # em um terminal
+./loadtest/preparar-cenario.sh  # cria a pauta e abre a sessão de votação
+k6 run -e PAUTA_ID=<id-retornado> loadtest/votar.js
+```
+
+**Resultado de uma execução local** (35s, banco H2, máquina de desenvolvimento — não representa um ambiente de produção dimensionado, mas evidencia o comportamento sob concorrência):
+
+- **79.634 votos processados**, 0 falhas (`http_req_failed: 0.00%`)
+- Latência: p95 = 46,3 ms, p99 = 81,27 ms
+- Throughput: ~2.275 requisições/segundo
+- Nenhum erro ou exceção registrada no log da aplicação durante a execução
+
+O resultado confirma que a constraint única do banco sustenta a regra de "um voto por associado" mesmo sob alta concorrência, sem necessidade de lock aplicacional, e que a query agregada de contabilização não é impactada pelo volume de escritas simultâneas. Para um cenário de produção real, o próximo passo seria repetir o teste contra o profile Postgres (não H2) e com carga escalada em ambiente dedicado, fora de uma máquina de desenvolvimento compartilhada com outros processos.
 
 ## Bônus 3 — Versionamento da API
 
