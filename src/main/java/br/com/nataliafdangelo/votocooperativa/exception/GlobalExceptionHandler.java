@@ -45,6 +45,21 @@ public class GlobalExceptionHandler {
         return responder(HttpStatus.CONFLICT, "Voto duplicado", ex);
     }
 
+    @ExceptionHandler(CpfInvalidoException.class)
+    public ResponseEntity<ErroResponse> tratarCpfInvalido(CpfInvalidoException ex) {
+        return responder(HttpStatus.NOT_FOUND, "CPF inválido", ex);
+    }
+
+    @ExceptionHandler(AssociadoNaoAptoException.class)
+    public ResponseEntity<ErroResponse> tratarAssociadoNaoApto(AssociadoNaoAptoException ex) {
+        return responder(HttpStatus.FORBIDDEN, "Associado não apto a votar", ex);
+    }
+
+    @ExceptionHandler(ServicoCpfIndisponivelException.class)
+    public ResponseEntity<ErroResponse> tratarServicoCpfIndisponivel(ServicoCpfIndisponivelException ex) {
+        return responder(HttpStatus.SERVICE_UNAVAILABLE, "Serviço indisponível", ex);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErroResponse> tratarValidacao(MethodArgumentNotValidException ex) {
         String mensagem = ex.getBindingResult().getFieldErrors().stream()

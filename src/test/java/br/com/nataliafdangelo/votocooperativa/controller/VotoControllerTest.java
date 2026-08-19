@@ -1,5 +1,7 @@
 package br.com.nataliafdangelo.votocooperativa.controller;
 
+import br.com.nataliafdangelo.votocooperativa.client.CpfEligibilidadeClient;
+import br.com.nataliafdangelo.votocooperativa.client.StatusVoto;
 import br.com.nataliafdangelo.votocooperativa.dto.TelaSelecao;
 import br.com.nataliafdangelo.votocooperativa.service.PautaService;
 import br.com.nataliafdangelo.votocooperativa.service.VotoService;
@@ -29,6 +31,9 @@ class VotoControllerTest {
     @MockitoBean
     private PautaService pautaService;
 
+    @MockitoBean
+    private CpfEligibilidadeClient cpfEligibilidadeClient;
+
     @Test
     void deveRetornarFormularioDeInformarAssociado() throws Exception {
         mockMvc.perform(post("/api/v1/pautas/1/votos/novo"))
@@ -41,7 +46,11 @@ class VotoControllerTest {
     }
 
     @Test
-    void deveRetornarTelaDeOpcoesComAssociadoNaUrl() throws Exception {
+    void deveRetornarTelaDeOpcoesComAssociadoNaUrlQuandoApto() throws Exception {
+        // given
+        when(cpfEligibilidadeClient.verificar("12345678900")).thenReturn(StatusVoto.ABLE_TO_VOTE);
+
+        // when / then
         mockMvc.perform(post("/api/v1/pautas/1/votos/opcoes")
                         .contentType("application/json")
                         .content("{\"associadoId\": \"12345678900\"}"))
@@ -54,10 +63,30 @@ class VotoControllerTest {
     }
 
     @Test
+    void deveRejeitarQuandoAssociadoNaoAptoAVotar() throws Exception {
+        // given
+        when(cpfEligibilidadeClient.verificar("12345678900")).thenReturn(StatusVoto.UNABLE_TO_VOTE);
+
+        // when / then
+        mockMvc.perform(post("/api/v1/pautas/1/votos/opcoes")
+                        .contentType("application/json")
+                        .content("{\"associadoId\": \"12345678900\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void deveRejeitarAssociadoEmBranco() throws Exception {
         mockMvc.perform(post("/api/v1/pautas/1/votos/opcoes")
                         .contentType("application/json")
                         .content("{\"associadoId\": \"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deveRejeitarAssociadoComFormatoInvalido() throws Exception {
+        mockMvc.perform(post("/api/v1/pautas/1/votos/opcoes")
+                        .contentType("application/json")
+                        .content("{\"associadoId\": \"123\"}"))
                 .andExpect(status().isBadRequest());
     }
 
