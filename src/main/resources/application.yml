@@ -18,3 +18,11 @@ spring:
 logging:
   level:
     br.com.nataliafdangelo.votocooperativa: INFO
+  charset:
+    console: UTF-8
+    file: UTF-8
+
+app:
+  cpf-service:
+    url: ${CPF_SERVICE_URL:https://user-info.herokuapp.com}
+    timeout-seconds: ${CPF_SERVICE_TIMEOUT_SECONDS:3}
