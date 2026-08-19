@@ -107,7 +107,7 @@ O menu de cada pauta é contextual ao estado da sessão: mostra "Abrir sessão" 
 ## Tratamento de erros
 
 - **404** — pauta/sessão não encontrada ou CPF inválido (serviço externo).
-- **409** — sessão já aberta ou voto duplicado.
+- **409** — sessão já aberta, voto duplicado, ou conflito de concorrência detectado pela constraint do banco (duas requisições simultâneas disputando o mesmo recurso).
 - **422** — sessão fechada ao votar, ou sessão ainda aberta ao consultar resultado.
 - **403** — associado não apto a votar.
 - **503** — serviço de CPF indisponível.
@@ -120,7 +120,9 @@ Implementada via `RestClient`, com URL e timeout configuráveis por variável de
 
 > **Nota importante:** no momento do desenvolvimento, o serviço `https://user-info.herokuapp.com` citado no enunciado estava indisponível, retornando 404 para qualquer requisição. Para validar a integração sem depender desse serviço externo, a implementação foi testada de duas formas: de maneira automatizada, com `MockRestServiceServer` simulando as respostas exatas descritas no enunciado (CPF apto/inapto/inválido); e manualmente, contra um mock HTTP local reproduzindo o mesmo contrato. O client também trata timeout e erro de rede de forma resiliente (→ 503, sem derrubar a aplicação), cenário não coberto explicitamente no enunciado mas relevante para uma dependência externa em produção.
 
-A checagem de CPF ocorre em um único ponto do fluxo, na etapa `/votos/opcoes`, entre o associado informar seu ID e a tela de Sim/Não ser exibida. Não é tratada como uma camada de autenticação global, já que o enunciado abstrai explicitamente segurança/autenticação do escopo.
+A checagem de CPF é executada pelo `VotoService`, não pelo controller, e ocorre em dois momentos: na etapa `/votos/opcoes` (falha cedo, antes de mostrar a tela de Sim/Não a um associado inapto) e novamente dentro de `votar()`, imediatamente antes de persistir o voto. A segunda checagem garante que a regra não possa ser contornada por uma chamada direta a `POST /votos/{associadoId}` sem passar pela etapa anterior — o `associadoId` chega por `@PathVariable`, então nada impede uma requisição de pular a tela intermediária. Não é tratada como uma camada de autenticação global, já que o enunciado abstrai explicitamente segurança/autenticação do escopo; é uma regra de negócio (associado elegível), aplicada onde o dado é efetivamente gravado.
+
+Vale notar que o serviço externo retorna resultado aleatório a cada chamada (conforme o próprio enunciado descreve). Checar a elegibilidade duas vezes no mesmo fluxo significa que, em teoria, um associado aprovado na primeira checagem pode ser reprovado na segunda. Esse comportamento é inerente à natureza aleatória do serviço externo, não introduzido pela checagem dupla — e é o trade-off correto: validar apenas uma vez e confiar no resultado até a gravação abriria uma janela de tempo (entre a confirmação e a escrita) em que a regra poderia ser violada.
 
 ## Bônus 2 — Performance
 
@@ -157,7 +159,7 @@ Justificativa: é explícito, já que a versão fica visível na própria URL se
 
 ## Testes e qualidade
 
-- **58 testes automatizados**, cobertura de **96% de instruções / 95% de branches** (JaCoCo — relatório gerado em `target/site/jacoco/index.html` após `./mvnw test`).
+- **61 testes automatizados**, cobertura de **97% de instruções / 90% de branches** (JaCoCo — relatório gerado em `target/site/jacoco/index.html` após `./mvnw test`).
 - **Unitários** (JUnit 5 + Mockito): regras de negócio dos services, isoladas de banco e HTTP.
 - **Fatia web** (`@WebMvcTest` + `MockMvc`): roteamento, serialização, validação e tradução de exceções pelo `@RestControllerAdvice`.
 - **Integração com banco real** (`@DataJpaTest`): confirma que as constraints únicas (voto duplicado, sessão duplicada) são impostas pelo banco, não apenas pela aplicação.
@@ -182,3 +184,4 @@ Build multi-stage (a imagem final não carrega JDK completo nem código-fonte) e
 - **Botão Cancelar**: tratado como uma ação de navegação igual ao botão principal (também dispara `POST`), por consistência — o anexo não detalha esse comportamento além de citá-lo como opcional.
 - **Formato do `associadoId`**: validado como CPF (11 dígitos numéricos) desde a coleta do dado, já que o Bônus 1 depende dessa identificação ser um CPF válido. Isso permite falhar rápido (400) antes mesmo de consultar o serviço externo.
 - **Segurança/autenticação**: abstraída, conforme instrução explícita do enunciado ("qualquer chamada pode ser considerada autorizada").
+- **Console web do H2**: habilitado em `/h2-console` apenas no profile padrão (desenvolvimento local com H2), sem autenticação — coerente com a abstração de segurança do enunciado, mas por prudência é explicitamente desabilitado no profile `postgres`, que representa um cenário mais próximo de produção.
