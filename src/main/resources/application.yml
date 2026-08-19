@@ -26,3 +26,20 @@ app:
   cpf-service:
     url: ${CPF_SERVICE_URL:https://user-info.herokuapp.com}
     timeout-seconds: ${CPF_SERVICE_TIMEOUT_SECONDS:3}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: API REST para gestão de pautas e votação em assembleias de cooperativa
