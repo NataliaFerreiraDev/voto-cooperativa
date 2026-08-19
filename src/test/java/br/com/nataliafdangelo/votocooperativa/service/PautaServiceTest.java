@@ -7,6 +7,7 @@ import br.com.nataliafdangelo.votocooperativa.dto.TelaSelecao;
 import br.com.nataliafdangelo.votocooperativa.exception.PautaNaoEncontradaException;
 import br.com.nataliafdangelo.votocooperativa.repository.PautaRepository;
 import br.com.nataliafdangelo.votocooperativa.repository.SessaoVotacaoRepository;
+import br.com.nataliafdangelo.votocooperativa.repository.VotoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,13 +35,16 @@ class PautaServiceTest {
     @Mock
     private SessaoVotacaoRepository sessaoVotacaoRepository;
 
+    @Mock
+    private VotoRepository votoRepository;
+
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-18T10:00:00Z"), ZoneOffset.UTC);
 
     private PautaService pautaService;
 
     @BeforeEach
     void setUp() {
-        pautaService = new PautaService(pautaRepository, sessaoVotacaoRepository, clock);
+        pautaService = new PautaService(pautaRepository, sessaoVotacaoRepository, votoRepository, clock);
     }
 
     @Test
@@ -78,19 +82,22 @@ class PautaServiceTest {
     }
 
     @Test
-    void deveListarPautaComSessaoEncerrada() {
+    void deveListarPautaComSessaoEncerradaEContagemDeVotos() {
         // given
         Pauta pauta = new Pauta("Pauta com sessão encerrada", "desc", Instant.now(clock));
         SessaoVotacao sessaoEncerrada = new SessaoVotacao(pauta,
                 Instant.now(clock).minusSeconds(120), Instant.now(clock).minusSeconds(60));
         when(pautaRepository.findAll()).thenReturn(List.of(pauta));
         when(sessaoVotacaoRepository.findByPautaId(pauta.getId())).thenReturn(Optional.of(sessaoEncerrada));
+        when(votoRepository.contarPorOpcao(sessaoEncerrada.getId())).thenReturn(List.of());
 
         // when
         TelaSelecao resultado = pautaService.listar();
 
         // then
-        assertThat(resultado.itens().getFirst().texto()).contains("votação encerrada");
+        assertThat(resultado.itens().getFirst().texto())
+                .contains("votação encerrada")
+                .contains("0 sim / 0 não");
     }
 
     @Test
@@ -125,7 +132,7 @@ class PautaServiceTest {
     }
 
     @Test
-    void deveRetornarMenuSemOpcoesQuandoSessaoEstaEncerrada() {
+    void deveRetornarMenuComOpcaoDeVerResultadoQuandoSessaoEstaEncerrada() {
         // given
         Pauta pauta = new Pauta("Pauta com sessão encerrada", "desc", Instant.now(clock));
         SessaoVotacao sessao = new SessaoVotacao(pauta,
@@ -137,7 +144,8 @@ class PautaServiceTest {
         TelaSelecao menu = pautaService.menu(1L);
 
         // then
-        assertThat(menu.itens()).isEmpty();
+        assertThat(menu.itens()).hasSize(1);
+        assertThat(menu.itens().getFirst().texto()).isEqualTo("Ver resultado");
     }
 
     @Test
