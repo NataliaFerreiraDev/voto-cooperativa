@@ -1,5 +1,6 @@
 package br.com.nataliafdangelo.votocooperativa.exception;
 
+import br.com.nataliafdangelo.votocooperativa.client.CpfEligibilidadeClient;
 import br.com.nataliafdangelo.votocooperativa.controller.PautaController;
 import br.com.nataliafdangelo.votocooperativa.controller.ResultadoController;
 import br.com.nataliafdangelo.votocooperativa.controller.SessaoVotacaoController;
@@ -46,6 +47,9 @@ class GlobalExceptionHandlerTest {
 
     @MockitoBean
     private ResultadoService resultadoService;
+
+    @MockitoBean
+    private CpfEligibilidadeClient cpfEligibilidadeClient;
 
     @Test
     void deveTraduzirPautaNaoEncontradaPara404() throws Exception {
@@ -108,6 +112,33 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(post("/api/v1/pautas/1/resultado"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.titulo").value("Sessão ainda aberta"));
+    }
+
+    @Test
+    void deveTraduzirCpfInvalidoPara404() throws Exception {
+        // given
+        when(cpfEligibilidadeClient.verificar("12345678900")).thenThrow(new CpfInvalidoException("12345678900"));
+
+        // when / then
+        mockMvc.perform(post("/api/v1/pautas/1/votos/opcoes")
+                        .contentType("application/json")
+                        .content("{\"associadoId\": \"12345678900\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.titulo").value("CPF inválido"));
+    }
+
+    @Test
+    void deveTraduzirServicoCpfIndisponivelPara503() throws Exception {
+        // given
+        when(cpfEligibilidadeClient.verificar("12345678900"))
+                .thenThrow(new ServicoCpfIndisponivelException(new RuntimeException("timeout")));
+
+        // when / then
+        mockMvc.perform(post("/api/v1/pautas/1/votos/opcoes")
+                        .contentType("application/json")
+                        .content("{\"associadoId\": \"12345678900\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.titulo").value("Serviço indisponível"));
     }
 
     @Test
